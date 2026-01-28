@@ -9,7 +9,7 @@ import tarfile
 STEAM_INSTALL_DIR = os.environ["STEAM_INSTALL"]
 VERSIONS_TO_KEEP = int(os.environ["VERSIONS_TO_KEEP"])
 UPDATE_DEFAULT_CONFIG = os.environ["UPDATE_DEFAULT_CONFIG"].lower() == "true"
-IGNORED_VERSIONS = os.environ["IGNORED_GE_VERSIONS"].strip().split(",")
+IGNORED_VERSIONS = os.environ["IGNORED_GE_VERSIONS"].replace(" ", "").split(",")
 
 # Other globals
 VERSION_REGEX = "GE-Proton(\\d+)-(\\d+)"
@@ -70,8 +70,20 @@ def compare_versions(lhs, rhs):
 
     return lhs["major"] == rhs["major"] and lhs["minor"] == rhs["minor"]
 
-def remove_ignored_versions():
-    pass
+def remove_ignored_versions(original_list):
+    # Given a list of versions, return a new list which contains only the ones which are not set to be removed
+    new_list = []
+
+    for item in original_list:
+        if item["full_name"] not in IGNORED_VERSIONS:
+            new_list.append(item)
+
+    return new_list
+
+def remove_expired_versions(versions_to_delete):
+    for version in versions_to_delete:
+        print(f"Deleting {version['full_name']}")
+        os.remove(version["full_path"])
 
 def install_latest_version(compat_folder, file_format, url):
     with tempfile.SpooledTemporaryFile(mode="r+b") as tmp_file:
@@ -96,9 +108,18 @@ def main():
    if any([compare_versions(latest_release, release) for release in installed_versions]):
       print(f"The latest version {latest_release['full_name']} is already installed")
       return
-    
 
+   # Install the new version
+   print(f"Installing latest verrsion {latest_release['full_name']}")
+   install_latest_version(compat_folder, "gz", latest_release["download_url"])
 
+   new_available_list = remove_ignored_versions(IGNORED_VERSIONS)
+   to_delete = new_available_list[VERSIONS_TO_KEEP - 1:]
+   if to_delete:
+       print("Deleting old versions...")
+       remove_expired_versions(to_delete)
+   else:
+       print("Nothing to delete!")
 
 if __name__ == "__main__":
     main()
